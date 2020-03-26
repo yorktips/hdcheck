@@ -16,6 +16,7 @@ import org.apache.commons.io.FileUtils;
 public class App {
 	static String gmailAccount="";
 	static String gmailPassword="";
+	static String emailTitleKey="";
 	
 	public static List<String> getAllDrivers(){
 		List<String> drivers= new ArrayList<String>();
@@ -51,8 +52,8 @@ public class App {
 			List<String> drivers=getAllDrivers();
 	    	
 	    	Properties props = new Properties();
-	    	String properties="C:\\eclipse-bluemix\\workspace\\HDCheck\\resource\\hdmonitor.properties";
-	    	//String properties="hdmonitor.properties";
+	    	//String properties="C:\\eclipse-bluemix\\workspace\\HDCheck\\resource\\hdmonitor.properties";
+	    	String properties="hdmonitor.properties";
 	    	File f= new File(properties);
 	    	if ( !f.exists() ) {
 	    		System.out.println("Error: mising hdmonitor.properties\n");
@@ -91,6 +92,7 @@ public class App {
 	    	}
 	    	
 	    	String body=null;
+	    	
 	    	if (body1!=null && body1.length()>1) {
 	    		if (body==null)
 	    			body=body1;
@@ -173,9 +175,11 @@ public class App {
     
     public static String getCheckDriveFreeSpaceMsg(String drive,Properties props ) {
     	String msg=null;
+    	String msgAlways=null;
     	if (drive==null || props==null) return msg;
     	if (drive.trim().equals("")) return msg;
     	
+    	String alwaysEmailSend=props.getProperty("always.email.send","No");
        	String min=props.getProperty(drive.toUpperCase());
        	//System.out.println("Checking " + drive )
        	if (min==null || min.equals("")) {
@@ -196,10 +200,16 @@ public class App {
     	if (lMin < lFreeSpace) bCheckOK=true;
     	if (lMin<=0) bCheckOK=true;
     	
+    	if (!bCheckOK)
+    		emailTitleKey="Error";
     	
-    	if (!bCheckOK) {
-    		String body=drive + " free space is " + formatMinHDSpace(min,lFreeSpace) +
-				"\n\nRequired minimum free space is " + min;
+    	String body=drive + " free space=" + formatMinHDSpace(min,lFreeSpace) +
+				"; Required minimum free space=" + min;
+    	
+    	if (alwaysEmailSend!=null && alwaysEmailSend.startsWith("Y"))
+    		bCheckOK=false;
+    	
+    	if (!bCheckOK) {    		
     		return body;
     	}else{
     		return null;
@@ -270,23 +280,35 @@ public class App {
     	if (nPathIex<1) 
     		return null;
     	
+    	String alwaysEmailSend=props.getProperty("always.email.send", "No");
     	String sPath=props.getProperty("PATH" + nPathIex);
     	//System.out.println(sPath + "=" + sPath);
     	if (sPath==null)
     		return null;
     	
     	String sMax=props.getProperty(sPath);
-    	
-    	
+    	    	
     	if (sMax==null || sMax.equals("")) return null;
      	long lMax=toLong(sMax);
     	long lCurUsageSpace=getFolderSize(sPath);
-    	System.out.println(sPath + " checked. current usage=" + formatMinHDSpace(sMax,lCurUsageSpace)+ "; maximum=" +sMax + "");
+    	String msg=sPath + " checked. Current usage=" + formatMinHDSpace(sMax,lCurUsageSpace) + "; maximum=" + sMax + ".";
+    	System.out.println(msg);
+    	boolean bCheckOK=false;
     	
-    	if (lMax <= 0 || lCurUsageSpace<=0) return null;
-       	if (lCurUsageSpace < lMax) return null;
+    	if (lMax <= 0 || lCurUsageSpace<=0) bCheckOK=true;
+       	if (lCurUsageSpace < lMax) bCheckOK=true;
        	
-       	return sPath + " checked. current usage=" + formatMinHDSpace(sMax,lCurUsageSpace) + "; maximum=" + sMax + ".";
+    	if (!bCheckOK)
+    		emailTitleKey="Error";
+
+       	
+       	if (alwaysEmailSend != null && alwaysEmailSend.startsWith("Y"))
+       		bCheckOK=false;
+       	
+       	if (bCheckOK)
+       		return null;
+       	else
+       		return msg;
     }
  
     	
@@ -306,6 +328,10 @@ public class App {
     	String hostname=props.getProperty("host.name", "Unknown");
     	String errorTitle=props.getProperty("mail.error.title", "Error: Hard Disk Free Space isn't enough");
     	String warningTitle=props.getProperty("mail.warning.title", "Warning: Hard Disk Free Space isn't enough");
+    	String alwaysEmailSend=props.getProperty("always.email.send", "No");
+    	
+    	if (!"error".equalsIgnoreCase(emailTitleKey))
+    		errorTitle=props.getProperty("mail.info.title", "Info: Hard Disk Free Space usage ");
     	
     	if (to.isEmpty()) {
     		System.out.println(SendEmailTLS.getCurrentTime() + " Error: Missing email recipients.\n");
